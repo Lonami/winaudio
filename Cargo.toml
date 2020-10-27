@@ -1,0 +1,18 @@
+[package]
+name = "winaudio"
+version = "1.0.0"
+edition = "2018"
+
+authors = ["Lonami Exo <totufals@hotmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Enables audio playback of waveform audio in Windows (play sounds from wav files)"
+homepage = "https://github.com/lonami/winaudio"
+documentation = "https://docs.rs/winaudio"
+repository = "https://github.com/lonami/winaudio"
+readme = "README.md"
+keywords = ["audio", "sound", "playback", "wav", "windows"]
+categories = ["api-bindings", "multimedia::audio", "os::windows-apis"]
+
+[target.'cfg(windows)'.dependencies]
+widestring = "0.4.3"
+winapi = { version = "0.3", features = ["mmsystem", "mmeapi"] }

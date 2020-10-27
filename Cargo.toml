@@ -1,6 +1,6 @@
 [package]
 name = "winaudio"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2018"
 
 authors = ["Lonami Exo <totufals@hotmail.com>"]
@@ -16,3 +16,6 @@ categories = ["api-bindings", "multimedia::audio", "os::windows-apis"]
 [target.'cfg(windows)'.dependencies]
 widestring = "0.4.3"
 winapi = { version = "0.3", features = ["mmsystem", "mmeapi"] }
+
+[package.metadata.docs.rs]
+targets = ["x86_64-pc-windows-msvc", "i686-pc-windows-msvc"]

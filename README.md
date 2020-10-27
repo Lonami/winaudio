@@ -21,8 +21,6 @@ fn main() {
 If you're missing a certain function from the [mmeapi.h header], feel free to open an issue
 or send a pull request to the project to add it. This initial version doesn't have methods to
 set the pitch or playback rate for example, but they can trivially be added if needed.
-[Windows Multimedia API]: https://docs.microsoft.com/en-us/windows/win32/api/_multimedia/
-[mmeapi.h header]: https://docs.microsoft.com/en-us/windows/win32/api/mmeapi/
 
 ## License
 
@@ -40,3 +38,8 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
+
+[Windows Multimedia API]: https://docs.microsoft.com/en-us/windows/win32/api/_multimedia/
+[mmeapi.h header]: https://docs.microsoft.com/en-us/windows/win32/api/mmeapi/
+[LICENSE-APACHE]: LICENSE-APACHE
+[LICENSE-MIT]: LICENSE-MIT

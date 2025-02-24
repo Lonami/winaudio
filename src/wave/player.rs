@@ -1,5 +1,4 @@
 use crate::device::WAVE_MAPPER;
-use crate::util::BinaryRead as _;
 use crate::wave::{Format, Out};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -12,41 +11,82 @@ pub struct Player {
 }
 
 impl Player {
-    /// Create a new `Player` instance from a `.wav` file stored in disk.
+    /// Creates a new `Player` instance from a `.wav` file stored on disk.
     pub fn from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let mut file = File::open(path)?;
-
-        let fmt = Format::from_wav_stream(&mut file)?;
-
-        let file_len = file.seek(SeekFrom::End(0))?;
-
-        const WF_OFFSET_DATA_SUBCHUNK: u64 = 36;
-        file.seek(SeekFrom::Start(WF_OFFSET_DATA_SUBCHUNK))?;
-
         let mut data_id = [0; 4];
-        file.read(&mut data_id)?;
-        if &data_id != b"data" {
+        // Check if the file is a RIFF WAVE file.
+        // https://web.archive.org/web/20101208013508/http://www.it.fht-esslingen.de/~schmidt/vorlesungen/mm/seminar/ss00/HTML/node128.html
+        file.read_exact(&mut data_id)?;
+        if &data_id != b"RIFF" {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "unexpected data subchunk id",
+                "unexpected file format",
             ));
         }
-        let meta_data_length = file.read_u32().unwrap() as u64;
+        file.seek(SeekFrom::Start(0))?;
+        const OFFSET_FMT_LENGTH: u64 = 4;
+        // https://web.archive.org/web/20101207175128/http://www.it.fht-esslingen.de/~schmidt/vorlesungen/mm/seminar/ss00/HTML/node130.html
+        let offset = match Self::find_string_in_file(&mut file, "fmt ") {
+            Ok(offset) => offset + OFFSET_FMT_LENGTH,
+            Err(e) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unexpected file format: {}", e),
+                ))
+            }
+        };
 
-        const WF_OFFSET_DATA: u64 = 44;
-        let data_length = file_len - WF_OFFSET_DATA;
+        let fmt = Format::from_wav_stream(&mut file, offset)?;
 
-        if meta_data_length > data_length {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "format data length was greater than actual file length",
-            ));
-        }
+        file.seek(SeekFrom::Start(0))?;
 
         Ok(Self { fmt, file })
     }
 
-    /// Play the file from beginning to end.
+    /// Seeks in an open binary file for the first occurrence of a certain string.
+    /// Reads chunks of at most 512 bytes and returns the index after the found string.
+    fn find_string_in_file(file: &mut File, target: &str) -> io::Result<u64> {
+        let needle = target.as_bytes();
+        let mut haystack = [0; 512];
+        let mut offset = 0;
+
+        loop {
+            let haystack_size = file.read(&mut haystack)?;
+            if haystack_size == 0 {
+                break;
+            }
+
+            if let Some(pos) = haystack[..haystack_size]
+                .windows(needle.len())
+                .position(|window| window == needle)
+            {
+                return Ok(offset + pos as u64 + needle.len() as u64);
+            }
+
+            // subtract needle length in case the needle is split between two chunks
+            offset += haystack_size as u64 - needle.len() as u64;
+            file.seek(SeekFrom::Start(offset))?;
+        }
+
+        Err(io::Error::new(io::ErrorKind::NotFound, "string not found"))
+    }
+
+    /// Sets the volume of the audio device.
+    /// The volume is a value between 0.0 and 1.0.
+    /// Returns the previous volume setting.
+    pub fn set_volume(&mut self, left: f32, right: f32) -> io::Result<(f32, f32)> {
+        let mut device = Out::open(WAVE_MAPPER, &self.fmt).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to open output audio device: {:?}", e),
+            )
+        })?;
+        let current_volume = device.get_volume().unwrap();
+        device.set_volume(left, right).unwrap();
+        Ok(current_volume)
+    }
+    /// Plays the file from beginning to end.
     pub fn play(&mut self) -> io::Result<()> {
         let mut device = Out::open(WAVE_MAPPER, &self.fmt).map_err(|e| {
             io::Error::new(

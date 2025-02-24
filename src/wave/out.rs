@@ -5,8 +5,8 @@ use std::mem;
 use std::pin::Pin;
 use std::ptr;
 use winapi::um::mmeapi::{
-    waveOutClose, waveOutOpen, waveOutPause, waveOutPrepareHeader, waveOutRestart,
-    waveOutSetVolume, waveOutUnprepareHeader, waveOutWrite, waveOutReset,
+    waveOutClose, waveOutGetVolume, waveOutOpen, waveOutPause, waveOutPrepareHeader, waveOutReset,
+    waveOutRestart, waveOutSetVolume, waveOutUnprepareHeader, waveOutWrite,
 };
 use winapi::um::mmsystem::{CALLBACK_FUNCTION, HWAVEOUT, WAVEHDR, WOM_CLOSE, WOM_DONE, WOM_OPEN};
 use winapi::um::winnt::LPSTR;
@@ -82,7 +82,7 @@ impl Out {
     /// If a device does not support both left and right volume control, the
     /// left volume level will be used, and the right volume level is ignored.
     pub fn set_volume(&mut self, left: f32, right: f32) -> Result<(), Error> {
-        if left < 0.0 || left > 1.0 || right < 0.0 || right > 1.0 {
+        if !(0.0..=1.0).contains(&left) || !(0.0..=1.0).contains(&right) {
             return Err(Error::InvalidParam);
         }
         let left = (left * 0xffff as f32) as u32;
@@ -90,7 +90,14 @@ impl Out {
         let vol = left | (right << 16);
         check_multimedia_error(unsafe { waveOutSetVolume(self.hwo, vol) })
     }
-
+    /// Gets the current volume setting.
+    pub fn get_volume(&mut self) -> Result<(f32, f32), Error> {
+        let mut vol: u32 = 0;
+        check_multimedia_error(unsafe { waveOutGetVolume(self.hwo, &mut vol) })?;
+        let left = vol & 0xffff;
+        let right = vol >> 16;
+        Ok((left as f32 / 0xffff as f32, right as f32 / 0xffff as f32))
+    }
     /// Prepares a waveform-audio data block for playback. Data can be read
     /// into the block before sending the block for playback to `write()`.
     fn prepare_block(hwo: HWAVEOUT, align: usize, mut size: usize) -> Result<Buffer, Error> {

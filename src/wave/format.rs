@@ -581,9 +581,8 @@ pub struct Format {
 
 impl Format {
     /// Fill the format structure from the stream of a `.wav` file.
-    pub fn from_wav_stream<S: Read + Seek>(file: &mut S) -> io::Result<Self> {
-        const WF_OFFSET_FORMATTAG: u64 = 20;
-        file.seek(SeekFrom::Start(WF_OFFSET_FORMATTAG))?;
+    pub fn from_wav_stream<S: Read + Seek>(file: &mut S, offset: u64) -> io::Result<Self> {
+        file.seek(SeekFrom::Start(offset))?;
 
         Ok(Self {
             format_tag: file.read_u16()?.try_into().map_err(|tag| {

@@ -51,13 +51,13 @@ macro_rules! enum_with_try_from {
 pub(crate) trait BinaryRead: Read {
     fn read_u16(&mut self) -> io::Result<u16> {
         let mut buffer = [0; 2];
-        self.read(&mut buffer)?;
+        self.read_exact(&mut buffer)?;
         Ok(u16::from_le_bytes(buffer))
     }
 
     fn read_u32(&mut self) -> io::Result<u32> {
         let mut buffer = [0; 4];
-        self.read(&mut buffer)?;
+        self.read_exact(&mut buffer)?;
         Ok(u32::from_le_bytes(buffer))
     }
 }

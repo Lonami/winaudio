@@ -7,12 +7,10 @@
 //! ```no_run
 //! use winaudio::wave::Player;
 //!
-//! fn main() {
 //!     let mut player = Player::from_file("test.wav").unwrap();
 //!     player.play().unwrap();
-//! }
 //! ```
-//! 
+//!
 //! If you're missing a certain function from the [mmeapi.h header], feel free to open an issue
 //! or send a pull request to the project to add it. This initial version doesn't have methods to
 //! set the pitch or playback rate for example, but they can trivially be added if needed.

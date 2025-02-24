@@ -3,19 +3,17 @@
 //! ```
 //! use winaudio::device;
 //!
-//! fn main() {
-//!     println!("There are {} device(s).", device::count());
+//! println!("There are {} device(s).", device::count());
 //!
-//!     for dev in 0..device::count() {
-//!         println!("Device {} capabilities: {:#?}",
-//!                  dev, device::get_capabilities(dev).unwrap());
-//!     }
+//! for dev in 0..device::count() {
+//!     println!("Device {} capabilities: {:#?}",
+//!              dev, device::get_capabilities(dev).unwrap());
 //! }
 //! ```
-use std::fmt;
 use crate::util::check_multimedia_error;
 use crate::Error;
 use std::convert::TryFrom;
+use std::fmt;
 use std::mem::{self, MaybeUninit};
 use widestring::U16CString;
 use winapi::um::mmeapi::*;
@@ -337,7 +335,9 @@ impl Capabilities {
 
     /// Product name.
     pub fn name(&self) -> String {
-        let name = unsafe { U16CString::from_ptr_str(self.caps.szPname.as_ptr()) };
+        let unaligned = &raw const self.caps.szPname;
+        let raw = unsafe { std::ptr::read_unaligned(unaligned) };
+        let name = unsafe { U16CString::from_ptr_str(raw.as_ptr()) };
         name.to_string().expect("non-utf8 product name")
     }
 
@@ -421,4 +421,122 @@ pub fn get_capabilities(index: u32) -> Result<Capabilities, Error> {
 /// Retrieves the number of waveform-audio output devices present in the system.
 pub fn count() -> u32 {
     unsafe { waveOutGetNumDevs() }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[repr(C, packed)]
+    struct MockCaps {
+        w_mid: u16,
+        w_pid: u16,
+        v_driver_version: u16,
+        sz_name: [u16; 32],
+    }
+
+    struct MockDevice {
+        caps: MockCaps,
+    }
+
+    impl MockDevice {
+        fn new(w_mid: u16, w_pid: u16, v_driver_version: u16, sz_pname: [u16; 32]) -> Self {
+            Self {
+                caps: MockCaps {
+                    w_mid,
+                    w_pid,
+                    v_driver_version,
+                    sz_name: sz_pname,
+                },
+            }
+        }
+    }
+
+    impl MockDevice {
+        fn manufacturer(&self) -> Manufacturer {
+            let mid = self.caps.w_mid;
+            Manufacturer::try_from(mid).expect("unknown manufacturer")
+        }
+
+        fn product(&self) -> Option<Product> {
+            let pid = self.caps.w_pid;
+
+            Product::try_from(pid).ok()
+        }
+
+        fn driver_version(&self) -> (u8, u8) {
+            let driver_version = self.caps.v_driver_version;
+
+            let major = ((driver_version) >> 8) & 0xff;
+            let minor = driver_version & 0xff;
+            (major as u8, minor as u8)
+        }
+
+        fn name(&self) -> String {
+            let unaligned = &raw const self.caps.sz_name;
+            let raw = unsafe { std::ptr::read_unaligned(unaligned) };
+
+            let sz_pname_ptr = raw.as_ptr();
+            let name = unsafe { U16CString::from_ptr_str(sz_pname_ptr) };
+            name.to_string().expect("non-utf8 product name")
+        }
+
+        fn supported_formats(&self) -> Vec<Format> {
+            [
+                Format::Mono8b11Khz,
+                Format::Mono16b11Khz,
+                Format::Stereo8b11Khz,
+                Format::Stereo16b11Khz,
+                Format::Mono8b22Khz,
+                Format::Mono16b22Khz,
+                Format::Stereo8b22Khz,
+                Format::Stereo16b22Khz,
+                Format::Mono8b44Khz,
+                Format::Mono16b44Khz,
+                Format::Stereo8b44Khz,
+                Format::Stereo16b44Khz,
+                Format::Mono8b96Khz,
+                Format::Mono16b96Khz,
+                Format::Stereo8b96Khz,
+                Format::Stereo16b96Khz,
+            ]
+            .to_vec()
+        }
+    }
+
+    #[test]
+    fn test_manufacturer() {
+        let device = MockDevice::new(Manufacturer::Microsoft as u16, 0, 0, [0; 32]);
+        assert_eq!(device.manufacturer(), Manufacturer::Microsoft);
+    }
+
+    #[test]
+    fn test_product() {
+        let device = MockDevice::new(0, Product::WaveOut as u16, 0, [0; 32]);
+        assert_eq!(device.product(), Some(Product::WaveOut));
+    }
+
+    #[test]
+    fn test_driver_version() {
+        let device = MockDevice::new(0, 0, 0x1307, [0; 32]);
+        assert_eq!(device.driver_version(), (19, 7));
+    }
+
+    #[test]
+    fn test_name() {
+        let name = "Test Device";
+        let mut name_array = [0; 32];
+        for (i, c) in name.encode_utf16().enumerate() {
+            name_array[i] = c;
+        }
+        let device = MockDevice::new(0, 0, 0, name_array);
+        assert_eq!(device.name(), name);
+    }
+
+    #[test]
+    fn test_supported_formats() {
+        let device = MockDevice::new(0, 0, 0, [0; 32]);
+        let formats = device.supported_formats();
+        assert!(formats.contains(&Format::Mono8b11Khz));
+        assert!(formats.contains(&Format::Stereo16b96Khz));
+    }
 }
